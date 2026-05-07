@@ -58,7 +58,7 @@ jobs:
 
       - name: Terraform fmt check
         working-directory: infra/
-        run: terraform fmt --check
+        run: terraform fmt --check -recursive
 
       - name: Terraform init
         working-directory: infra/
