@@ -1,0 +1,88 @@
+name: Terraform CI
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Build Lambda zip
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build function zip
+        run: cd app/ && zip function.zip index.js
+
+      - name: Upload zip artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: function-zip
+          path: app/function.zip
+
+  terraform:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download zip artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: function-zip
+          path: app/
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Terraform fmt check
+        working-directory: infra/
+        run: terraform fmt --check -recursive
+
+      - name: Terraform init
+        working-directory: infra/
+        run: terraform init -backend=false
+
+      - name: Terraform validate
+        working-directory: infra/
+        run: terraform validate
+
+      - name: Terraform plan
+        id: plan
+        working-directory: infra/
+        run: terraform plan -var-file=envs/dev/dev.tfvars -no-color 2>&1 | tee /tmp/plan_output.txt
+        continue-on-error: true
+
+      - name: Post plan as PR comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const planOutput = fs.readFileSync('/tmp/plan_output.txt', 'utf8');
+            const body = `## Terraform Plan Output\n\n<details><summary>Click to expand</summary>\n\n\`\`\`\n${planOutput}\n\`\`\`\n\n</details>`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body,
+            });
+
+      - name: Fail if plan failed
+        if: steps.plan.outcome == 'failure'
+        run: exit 1
