@@ -1,8 +1,7 @@
 # Ejercicio 3.2 — Lambda Currency Converter
 
 **Curso:** Optimizaciones y Desempeño — Cloud Deployment Automation  
-**Sesión:** 3 — 7 de mayo de 2026  
-**Estudiante:** Danie
+**Estudiantes:** Gabriela Navarro y Sandra Soria
 
 ---
 
